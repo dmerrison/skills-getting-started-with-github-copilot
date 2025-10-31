@@ -1,8 +1,16 @@
+
 document.addEventListener("DOMContentLoaded", () => {
   const activitiesList = document.getElementById("activities-list");
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  // Modal elements
+  const deleteModal = document.getElementById("delete-modal");
+  const modalMessage = document.getElementById("modal-message");
+  const modalClose = document.getElementById("modal-close");
+  const modalCancel = document.getElementById("modal-cancel");
+  const modalConfirm = document.getElementById("modal-confirm");
+  let modalAction = null;
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -20,17 +28,21 @@ document.addEventListener("DOMContentLoaded", () => {
 
         const spotsLeft = details.max_participants - details.participants.length;
 
-        // Create participants list HTML
+        // Create participants list HTML with delete icon
         let participantsHTML = "";
         if (details.participants.length > 0) {
           participantsHTML = `
             <div class="participants-section">
               <strong>Participants:</strong>
-              <ul class="participants-list">
+              <ul class="participants-list no-bullets">
                 ${details.participants
                   .map(
                     (participant) =>
-                      `<li class="participant-item">${participant}</li>`
+                      `<li class="participant-item"><span class="participant-email">${participant}</span> <span class="delete-icon" title="Remove participant" data-activity="${encodeURIComponent(
+                        name
+                      )}" data-email="${encodeURIComponent(
+                        participant
+                      )}">&#128465;</span></li>`
                   )
                   .join("")}
               </ul>
@@ -61,6 +73,61 @@ document.addEventListener("DOMContentLoaded", () => {
         option.textContent = name;
         activitySelect.appendChild(option);
       });
+
+      // Add event listeners for delete icons
+      document.querySelectorAll(".delete-icon").forEach((icon) => {
+        icon.addEventListener("click", (e) => {
+          const activity = icon.getAttribute("data-activity");
+          const email = icon.getAttribute("data-email");
+          // Show modal
+          modalMessage.textContent = `Remove ${decodeURIComponent(email)} from ${decodeURIComponent(activity)}?`;
+          deleteModal.classList.remove("hidden");
+          modalAction = async () => {
+            try {
+              const response = await fetch(`/activities/${activity}/unregister?email=${email}`, {
+                method: "POST",
+              });
+              const result = await response.json();
+              if (response.ok) {
+                messageDiv.textContent = result.message;
+                messageDiv.className = "success";
+                fetchActivities();
+              } else {
+                messageDiv.textContent = result.detail || "An error occurred";
+                messageDiv.className = "error";
+              }
+              messageDiv.classList.remove("hidden");
+              setTimeout(() => {
+                messageDiv.classList.add("hidden");
+              }, 5000);
+            } catch (error) {
+              messageDiv.textContent = "Failed to remove participant. Please try again.";
+              messageDiv.className = "error";
+              messageDiv.classList.remove("hidden");
+              setTimeout(() => {
+                messageDiv.classList.add("hidden");
+              }, 5000);
+            }
+            deleteModal.classList.add("hidden");
+            modalAction = null;
+          };
+        });
+      });
+
+  // Modal event listeners
+  modalClose.addEventListener("click", () => {
+    deleteModal.classList.add("hidden");
+    modalAction = null;
+  });
+  modalCancel.addEventListener("click", () => {
+    deleteModal.classList.add("hidden");
+    modalAction = null;
+  });
+  modalConfirm.addEventListener("click", () => {
+    if (typeof modalAction === "function") {
+      modalAction();
+    }
+  });
     } catch (error) {
       activitiesList.innerHTML = "<p>Failed to load activities. Please try again later.</p>";
       console.error("Error fetching activities:", error);
